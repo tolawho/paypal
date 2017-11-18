@@ -1,0 +1,31 @@
+{
+    "name": "tolawho/paypal",
+    "description": "Paypal for Laravel 5",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "tolawho",
+            "email": "tolawho@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Tolawho\\Paypal\\": "src"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "paypal/rest-api-sdk-php": "*",
+        "guzzlehttp/guzzle": "~6.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Tolawho\\Paypal\\Providers\\ServiceProvider"
+            ],
+            "aliases": {
+                "Loggy": "Tolawho\\Paypal\\Facades\\Paypal"
+            }
+        }
+    }
+}
