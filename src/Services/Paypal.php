@@ -1,5 +1,7 @@
 <?php
 
+namespace Tolawho\Paypal\Services;
+
 use PayPal\Api\Amount;
 use PayPal\Api\Currency;
 use PayPal\Api\Item;
