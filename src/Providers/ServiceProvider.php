@@ -36,7 +36,7 @@ class ServiceProvider extends Provider
      */
     private function _loadConfiguration()
     {
-        $configPath = __DIR__ . '/config.php';
+        $configPath = __DIR__ . '/../config.php';
 
         $this->publishes([$configPath => config_path('paypal.php')], 'config');
 
