@@ -24,7 +24,7 @@
                 "Tolawho\\Paypal\\Providers\\ServiceProvider"
             ],
             "aliases": {
-                "Loggy": "Tolawho\\Paypal\\Facades\\Paypal"
+                "Paypal": "Tolawho\\Paypal\\Facades\\Paypal"
             }
         }
     }
