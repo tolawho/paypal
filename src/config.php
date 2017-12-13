@@ -14,10 +14,34 @@ return [
      * List plan id
      */
     'plans' => [
-        'standard' => env('PAYPAL_STANDARD_PLAN', ''),
-        'sliver' => env('PAYPAL_STANDARD_SILVER', ''),
-        'gold' => env('PAYPAL_STANDARD_GOLD', ''),
-        'platinum' => env('PAYPAL_STANDARD_PLATINUM', ''),
+        'trial' => [
+            'monthly' => [
+                'standard' => env('PAYPAL_SUBSCRIBE_STANDARD_TRIAL_MONTHLY', ''),
+                'silver' => env('PAYPAL_SUBSCRIBE_SILVER_TRIAL_MONTHLY', ''),
+                'gold' => env('PAYPAL_SUBSCRIBE_GOLD_TRIAL_MONTHLY', ''),
+                'platinum' => env('PAYPAL_SUBSCRIBE_PLATINUM_TRIAL_MONTHLY', ''),
+            ],
+            'yearly' => [
+                'standard' => env('PAYPAL_SUBSCRIBE_STANDARD_TRIAL_YEARLY', ''),
+                'silver' => env('PAYPAL_SUBSCRIBE_SILVER_TRIAL_YEARLY', ''),
+                'gold' => env('PAYPAL_SUBSCRIBE_GOLD_TRIAL_YEARLY', ''),
+                'platinum' => env('PAYPAL_SUBSCRIBE_PLATINUM_TRIAL_YEARLY', ''),
+            ]
+        ],
+        'regular' => [
+            'monthly' => [
+                'standard' => env('PAYPAL_SUBSCRIBE_STANDARD_MONTHLY', ''),
+                'silver' => env('PAYPAL_SUBSCRIBE_SILVER_MONTHLY', ''),
+                'gold' => env('PAYPAL_SUBSCRIBE_GOLD_MONTHLY', ''),
+                'platinum' => env('PAYPAL_SUBSCRIBE_PLATINUM_MONTHLY', ''),
+            ],
+            'yearly' => [
+                'standard' => env('PAYPAL_SUBSCRIBE_STANDARD_YEARLY', ''),
+                'silver' => env('PAYPAL_SUBSCRIBE_SILVER_YEARLY', ''),
+                'gold' => env('PAYPAL_SUBSCRIBE_GOLD_YEARLY', ''),
+                'platinum' => env('PAYPAL_SUBSCRIBE_PLATINUM_YEARLY', ''),
+            ]
+        ]
     ],
 
     /**

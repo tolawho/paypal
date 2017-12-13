@@ -2,6 +2,9 @@
 
 namespace Tolawho\Paypal\Services;
 
+use Carbon\Carbon;
+use PayPal\Api\Agreement;
+use PayPal\Api\AgreementStateDescriptor;
 use PayPal\Api\Amount;
 use PayPal\Api\Currency;
 use PayPal\Api\Item;
@@ -18,7 +21,9 @@ use PayPal\Api\RedirectUrls;
 use PayPal\Api\Transaction;
 use PayPal\Auth\OAuthTokenCredential;
 use PayPal\Common\PayPalModel;
+use PayPal\Exception\PayPalConnectionException;
 use PayPal\Rest\ApiContext;
+use Exception;
 
 class Paypal
 {
@@ -192,11 +197,16 @@ class Paypal
     /**
      * Create payment
      *
-     * @param string $transactionDescription Description for transaction
+     * @param array $data
+     * $data = [
+     *  'items' => // list item
+     *  'total' => // total amount of all items
+     *  'desc'  => // description for transaction
+     * ]
      * @return bool|string
      * @throws Exception
      */
-    public function createPayment($transactionDescription)
+    public function createPayment($data = [])
     {
         // Set payment method
         $payer = new Payer();
@@ -215,7 +225,7 @@ class Paypal
         $transaction = new Transaction();
         $transaction->setAmount($amount)
             ->setItemList($itemList)
-            ->setDescription($transactionDescription);
+            ->setDescription($data['desc']);
 
         // URL to process a transaction successful.
         $redirectUrls = new RedirectUrls();
@@ -234,14 +244,14 @@ class Paypal
         $payment->setIntent("sale")
             ->setPayer($payer)
             ->setRedirectUrls($redirectUrls)
-            ->setTransactions(array($transaction));
+            ->setTransactions([$transaction]);
 
         $request = clone $payment;
 
         // Do create payment
         try {
             $payment->create($this->apiContext);
-        } catch (\PayPal\Exception\PayPalConnectionException $e) {
+        } catch (PayPalConnectionException $e) {
             logger("Created Payment Using PayPal. Please visit the URL to Approve.", $request);
             throw new \Exception($e->getMessage());
         }
@@ -296,7 +306,7 @@ class Paypal
     {
         try {
             return Payment::get($paymentId, $this->apiContext);
-        } catch (\PayPal\Exception\PayPalConnectionException $e) {
+        } catch (PayPalConnectionException $e) {
             throw new \Exception($e->getMessage());
         }
     }
@@ -316,7 +326,7 @@ class Paypal
                 'count' => $limit,
                 'start_index' => $offset
             ], $this->apiContext);
-        } catch (\PayPal\Exception\PayPalConnectionException $e) {
+        } catch (PayPalConnectionException $e) {
             throw new \Exception($e->getMessage());
         }
     }
@@ -328,19 +338,30 @@ class Paypal
     {
         // Create a new billing plan
         $plan = new Plan();
-        $plan->setName('App Name Monthly Billing')
-            ->setDescription('Monthly Subscription to the App Name')
-            ->setType('infinite');
+        $plan->setName('Trial 04')
+            ->setDescription('Monthly Subscription')
+            ->setType('INFINITE');
 
         // Set billing plan definitions
         $paymentDefinition = new PaymentDefinition();
         $paymentDefinition->setName('Regular Payments')
             ->setType('REGULAR')
-            ->setFrequency('Month')
-            ->setFrequencyInterval('1')
-            ->setCycles('0')
+            ->setFrequency('DAY')
+            ->setFrequencyInterval(1)
+            ->setCycles(0)
             ->setAmount(new Currency([
-                'value' => 9.0,
+                'value' => 0.9,
+                'currency' => $this->getCurrency()
+            ]));
+
+        $paymentDefinitionTrial = new PaymentDefinition();
+        $paymentDefinitionTrial->setName('Trial Payments')
+            ->setType('TRIAL')
+            ->setFrequency('DAY')
+            ->setFrequencyInterval(1)
+            ->setCycles(1)
+            ->setAmount(new Currency([
+                'value' => 0.0,
                 'currency' => $this->getCurrency()
             ]));
 
@@ -352,30 +373,16 @@ class Paypal
             ->setInitialFailAmountAction('CONTINUE')
             ->setMaxFailAttempts('0');
 
-        $plan->setPaymentDefinitions([$paymentDefinition]);
+        $plan->addPaymentDefinition($paymentDefinition);
+        $plan->addPaymentDefinition($paymentDefinitionTrial);
+
+        //$plan->setPaymentDefinitions([$paymentDefinition, $paymentDefinitionTrial]);
         $plan->setMerchantPreferences($merchantPreferences);
 
         // Create the plan
         try {
-            $createdPlan = $plan->create($this->apiContext);
-            try {
-                $patch = new Patch();
-                $value = new PayPalModel('{"state":"ACTIVE"}');
-                $patch->setOp('replace')
-                    ->setPath('/')
-                    ->setValue($value);
-                $patchRequest = new PatchRequest();
-                $patchRequest->addPatch($patch);
-                $createdPlan->update($patchRequest, $this->apiContext);
-                return Plan::get($createdPlan->getId(), $this->apiContext);
-            } catch (PayPal\Exception\PayPalConnectionException $ex) {
-                echo $ex->getCode();
-                echo $ex->getData();
-                die($ex);
-            } catch (Exception $ex) {
-                die($ex);
-            }
-        } catch (PayPal\Exception\PayPalConnectionException $ex) {
+            return $plan->create($this->apiContext);
+        } catch (PayPalConnectionException $ex) {
             echo $ex->getCode();
             echo $ex->getData();
             die($ex);
@@ -383,6 +390,250 @@ class Paypal
             die($ex);
         }
     }
+
+    /**
+     * Show billing plan details
+     *
+     * @param $planId
+     * @return Plan
+     */
+    public function planDetails($planId)
+    {
+        try {
+            return Plan::get($planId, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die($ex);
+        }
+    }
+
+    /**
+     * Lists billing plans.
+     *
+     * @return \PayPal\Api\PlanList
+     */
+    public function listPlans()
+    {
+        try {
+            return Plan::all([], $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die($ex);
+        }
+    }
+
+    /**
+     * Updates fields in a billing plan, by ID
+     *
+     * @param $planId
+     * @return \PayPal\Api\PlanList
+     */
+    public function activePlan($planId)
+    {
+        try {
+            $patch = new Patch();
+            $value = new PayPalModel('{
+                "state":"ACTIVE"
+            }');
+            $patch->setOp('replace')
+                ->setPath('/')
+                ->setValue($value);
+            $patchRequest = new PatchRequest();
+            $patchRequest->addPatch($patch);
+            $plan = new Plan();
+            $plan->setId($planId);
+            $plan->update($patchRequest, $this->apiContext);
+            return Plan::get($planId, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Delete a billing plan
+     *
+     * @param $planId
+     * @return bool
+     */
+    public function deletePlan($planId)
+    {
+        try {
+            $plan = new Plan();
+            $plan->setId($planId);
+            $plan->delete($this->apiContext);
+            return true;
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Create Billing Agreement
+     *
+     * @param $planId
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function createBillingAgreement($planId)
+    {
+        $agreement = new Agreement();
+        $agreement->setName('Base Agreement')
+            ->setDescription('Basic Agreement')
+            ->setStartDate(Carbon::now()->addMinute()->toAtomString());
+
+        // Add Plan ID, please note that the plan Id should be only set in this case.
+        $plan = new Plan();
+        $plan->setId($planId);
+        $agreement->setPlan($plan);
+
+        // Add Payer
+        $payer = new Payer();
+        $payer->setPaymentMethod('paypal');
+        $agreement->setPayer($payer);
+
+        // ### Create Agreement
+        try {
+            // Please note that as the agreement has not yet activated, we wont be receiving the ID just yet.
+            $agreement = $agreement->create($this->apiContext);
+            // ### Get redirect url
+            // The API response provides the url that you must redirect
+            // the buyer to. Retrieve the url from the $agreement->getApprovalLink() method
+            return redirect()->to($agreement->getApprovalLink());
+        } catch (Exception $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Do execute billing agreement
+     *
+     * @param $token
+     * @return Agreement
+     */
+    public function executeBillingAgreement($token)
+    {
+        try {
+            // Execute agreement
+            $agreement = new Agreement();
+            return $agreement->execute($token, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Shows details for a billing agreement, by ID
+     *
+     * @param $agreementId
+     * @return Agreement
+     */
+    public function getBillingAgreement($agreementId)
+    {
+        try {
+            return Agreement::get($agreementId, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Suspends a billing agreement, by ID.
+     *
+     * @param $agreementId
+     * @return Agreement
+     */
+    public function suspendBillingAgreement($agreementId)
+    {
+        //Create an Agreement State Descriptor, explaining the reason to suspend.
+        $agreementStateDescriptor = new AgreementStateDescriptor();
+        $agreementStateDescriptor->setNote("Suspending the agreement");
+        $agreement = $this->getBillingAgreement($agreementId);
+        try {
+            $agreement->suspend($agreementStateDescriptor, $this->apiContext);
+            return $this->getBillingAgreement($agreementId);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Re-activates a suspended billing agreement, by ID
+     *
+     * @param $agreementId
+     * @return Agreement
+     */
+    public function reActivateBillingAgreement($agreementId)
+    {
+        //Create an Agreement State Descriptor, explaining the reason to suspend.
+        $agreementStateDescriptor = new AgreementStateDescriptor();
+        $agreementStateDescriptor->setNote("Re-Active the agreement");
+        $agreement = $this->getBillingAgreement($agreementId);
+        try {
+            $agreement->reActivate($agreementStateDescriptor, $this->apiContext);
+            return $this->getBillingAgreement($agreementId);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Cancels a billing agreement, by ID
+     *
+     * @param $agreementId
+     * @return Agreement
+     */
+    public function cancelBillingAgreement($agreementId)
+    {
+        $agreementStateDescriptor = new AgreementStateDescriptor();
+        $agreementStateDescriptor->setNote("Cancel the agreement");
+        $agreement = $this->getBillingAgreement($agreementId);
+        try {
+            $agreement->cancel($agreementStateDescriptor, $this->apiContext);
+            return $this->getBillingAgreement($agreementId);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    /**
+     * Lists transactions for an agreement, by ID
+     *
+     * @param $agreementId
+     * @param string $start date start to search
+     * @param string $end date end to search
+     * @return \PayPal\Api\AgreementTransactions
+     */
+    public function listTransactionBillingAgreement($agreementId, $start = null, $end = null)
+    {
+        // Adding Params to search transaction within a given time frame.
+        $params = array('start_date' => date('Y-m-d', strtotime('-15 years')), 'end_date' => date('Y-m-d', strtotime('+5 days')));
+        try {
+            return Agreement::searchTransactions($agreementId, $params, $this->apiContext);
+        } catch (PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die(1);
+        }
+    }
+
+    
 
 
 }
